@@ -6,7 +6,7 @@ import { Construct } from 'constructs';
 // use dotenv to read from .env file
 import * as dotenv from 'dotenv';
 import path = require('path');
-const rootDir = path.resolve(__dirname, '..', '..');
+const rootDir = path.resolve(__dirname, '..');
 dotenv.config({ path: path.resolve(rootDir, '.env') });
 
 const githubToken = process.env.CDK_GITHUB_ACCESS_TOKEN || '';
@@ -54,17 +54,17 @@ export class AwsInfraStack extends cdk.Stack {
     // create a userData script that installs codeDeploy agent and docker on ec2 instance launch
     const script = cdk.aws_ec2.UserData.custom(`
       #!/bin/bash
-      $ sudo yum update -y
-      $ sudo yum install ruby -y
-      $ sudo yum install wget -y
-      $ cd /home/ec2-user
-      $ wget https://aws-codedeploy-eu-central-1.s3.eu-central-1.amazonaws.com/latest/install
-      $ chmod +x ./install
-      $ sudo ./install auto
-      $ sudo service codedeploy-agent start
-      $ sudo amazon-linux-extras install docker -y
-      $ sudo service docker start
-      $ sudo usermod -a -G docker ec2-user
+      sudo yum update -y
+      sudo yum install ruby -y
+      sudo yum install wget -y
+      cd /home/ec2-user
+      wget https://aws-codedeploy-eu-central-1.s3.eu-central-1.amazonaws.com/latest/install
+      chmod +x ./install
+      sudo ./install auto
+      sudo service codedeploy-agent start
+      sudo amazon-linux-extras install docker -y
+      sudo service docker start
+      sudo usermod -a -G docker ec2-user
     `);
 
     //  create an ec2 instance that runs in the public subnet and add inbound rules to allow traffic from port 80
@@ -86,6 +86,8 @@ export class AwsInfraStack extends cdk.Stack {
       restartExecutionOnUpdate: true,
     });
 
+    const buildArtifakt = new cdk.aws_codepipeline.Artifact('BuildArtifact');
+
     // create a source stage that uses the "gitHubRepo" as source
     const githubSourceStage = {
       stageName: 'Source',
@@ -96,7 +98,7 @@ export class AwsInfraStack extends cdk.Stack {
           repo: 'cdk-test',
           branch: 'main',
           oauthToken: cdk.SecretValue.unsafePlainText(githubToken),
-          output: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
+          output: buildArtifakt,
         }),
       ],
     };
@@ -105,6 +107,7 @@ export class AwsInfraStack extends cdk.Stack {
 
     // create a codebuild using AWS CodeBuild to generate the docker image and push it to Docker hub and uses the "s3Bucket" as artifact store and the githubSourceStage as input
     const codeBuild = new cdk.aws_codebuild.PipelineProject(this, 'CodeBuild', {
+      // the output artifact should only contain the appspec.yml file and the scripts folder
       projectName: 'MyFirstCodeBuild',
       environment: {
         privileged: true,
@@ -145,19 +148,21 @@ export class AwsInfraStack extends cdk.Stack {
             ],
           },
         },
+        artifacts: {
+          files: ['appspec.yml', 'scripts/**/*', '.env'],
+        },
       }),
     });
 
     // create a build stage that usses the artifact from the "githubSourceStage" as input and the "s3Bucket" as output and make sure the githubSourceStage is not empty
-
     const buildStage = {
       stageName: 'Build',
       actions: [
         new cdk.aws_codepipeline_actions.CodeBuildAction({
           actionName: 'CodeBuild',
           project: codeBuild,
-          input: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
-          outputs: [new cdk.aws_codepipeline.Artifact()],
+          input: buildArtifakt,
+          outputs: [new cdk.aws_codepipeline.Artifact('BuildOutput')],
         }),
       ],
     };
@@ -171,25 +176,32 @@ export class AwsInfraStack extends cdk.Stack {
         failedDeployment: true,
       },
       deploymentConfig: cdk.aws_codedeploy.ServerDeploymentConfig.ALL_AT_ONCE,
-      installAgent: true,
+      installAgent: false,
       ec2InstanceTags: new cdk.aws_codedeploy.InstanceTagSet({
         source: ['dockerEc2'],
       }),
     });
 
-    // create a deploy stage that uses the "ec2Instance" as deployment target and the artifact from the "buildStage" as input
+    // create a deploy stage that uses the "s3Bucket" as input and the "deploymentGroup" as deployment target, make sure codeBuild has the right permissions pull the artifact from the "s3Bucket"
     const deployStage = {
       stageName: 'Deploy',
       actions: [
         new cdk.aws_codepipeline_actions.CodeDeployServerDeployAction({
           actionName: 'CodeDeploy',
           deploymentGroup,
-          input: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
+          // get the artifact that was created from codebuild during the build stage, remember "pipeline.artifacts[1]" is wrong! because "artifacts" is not part of the pipeline
+          input: buildStage.actions[0].actionProperties.outputs![0],
         }),
       ],
     };
 
     pipeline.addStage(deployStage);
+
+    // the pipline creates a s3 bucket along with the pipeline, make it possible that the ec2 instance e.g. codedeploy can access the s3 bucket
+    const s3Bucket = pipeline.artifactBucket;
+
+    s3Bucket.grantRead(deploymentGroup.role!);
+    s3Bucket.grantReadWrite(ec2Instance.role!);
 
     // finish
   }

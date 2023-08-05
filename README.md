@@ -24,3 +24,6 @@ cdk destroy (delete stacks)
 docker login -u USERNAME -p 'PASSWORD'
 
 docker run -p 80:3000 IMAGE
+
+check if docker runs sudo systemctl is-active docker
+check if codedeploy runs sudo service codedeploy-agent status
