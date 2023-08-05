@@ -1,7 +1,18 @@
 //  this file manages the aws sources using the aws-cdk-lib
+// ignore typescript errors for this file
+
 import * as cdk from 'aws-cdk-lib';
-import { Vpc } from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
+// use dotenv to read from .env file
+import * as dotenv from 'dotenv';
+import path = require('path');
+const rootDir = path.resolve(__dirname, '..', '..');
+dotenv.config({ path: path.resolve(rootDir, '.env') });
+
+const githubToken = process.env.CDK_GITHUB_ACCESS_TOKEN || '';
+const dockerUsername = process.env.CDK_DOCKER_USERNAME || '';
+const dockerPassword = process.env.CDK_DOCKER_PASSWORD || '';
+const dockerImage = process.env.CDK_DOCKER_IMAGE_NAME || '';
 
 export class AwsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -66,20 +77,120 @@ export class AwsInfraStack extends cdk.Stack {
       userData: script,
     });
 
-    // create an s3 bucket that can be used by codepipeline
-    const s3Bucket = new cdk.aws_s3.Bucket(this, 'S3Bucket', {
-      bucketName: 'my-first-bucket',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
+    // add  the tag "dockerEc2" to the ec2 instance in order to find it later
+    cdk.Tags.of(ec2Instance).add('source', 'dockerEc2');
 
-    // create a gitHubRepo variable that contains the url of the gitHub repo
-    const gitHubRepo = 'https://github.com/D-Nayte/man-makes-monsters';
-
-    // create a CICD pipleline that uses the "gitHubRepo" as source and the "s3Bucket" as artifact store and deploy to the "ec2Instance"
+    // create a CICD pipleline that uses the "gitHubRepo" as source and stores the artifacts in the "s3Bucket"
     const pipeline = new cdk.aws_codepipeline.Pipeline(this, 'Pipeline', {
       pipelineName: 'MyFirstPipeline',
       restartExecutionOnUpdate: true,
-      artifactBucket: s3Bucket,
     });
+
+    // create a source stage that uses the "gitHubRepo" as source
+    const githubSourceStage = {
+      stageName: 'Source',
+      actions: [
+        new cdk.aws_codepipeline_actions.GitHubSourceAction({
+          actionName: 'GitHub_Source',
+          owner: 'D-Nayte',
+          repo: 'cdk-test',
+          branch: 'main',
+          oauthToken: cdk.SecretValue.unsafePlainText(githubToken),
+          output: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
+        }),
+      ],
+    };
+
+    pipeline.addStage(githubSourceStage);
+
+    // create a codebuild using AWS CodeBuild to generate the docker image and push it to Docker hub and uses the "s3Bucket" as artifact store and the githubSourceStage as input
+    const codeBuild = new cdk.aws_codebuild.PipelineProject(this, 'CodeBuild', {
+      projectName: 'MyFirstCodeBuild',
+      environment: {
+        privileged: true,
+        environmentVariables: {
+          DOCKER_USERNAME: {
+            value: dockerUsername,
+          },
+          DOCKER_PASSWORD: {
+            value: dockerPassword,
+          },
+          DOCKER_IMAGE_NAME: {
+            value: dockerImage,
+          },
+        },
+      },
+      buildSpec: cdk.aws_codebuild.BuildSpec.fromObject({
+        version: '0.2',
+        phases: {
+          pre_build: {
+            commands: [
+              'echo Logging in to Docker Hub...',
+              'echo $DOCKER_PASSWORD | docker login --username $DOCKER_USERNAME --password-stdin',
+            ],
+          },
+          build: {
+            commands: [
+              'echo Build started on `date`',
+              'echo Building the Docker image...',
+              'docker build -t $DOCKER_IMAGE_NAME .',
+              'docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:latest',
+            ],
+          },
+          post_build: {
+            commands: [
+              'echo Build completed on `date`',
+              'echo Pushing the Docker image...',
+              'docker push $DOCKER_IMAGE_NAME:latest',
+            ],
+          },
+        },
+      }),
+    });
+
+    // create a build stage that usses the artifact from the "githubSourceStage" as input and the "s3Bucket" as output and make sure the githubSourceStage is not empty
+
+    const buildStage = {
+      stageName: 'Build',
+      actions: [
+        new cdk.aws_codepipeline_actions.CodeBuildAction({
+          actionName: 'CodeBuild',
+          project: codeBuild,
+          input: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
+          outputs: [new cdk.aws_codepipeline.Artifact()],
+        }),
+      ],
+    };
+
+    pipeline.addStage(buildStage);
+
+    // create new CodeDeploy deploymentgroup wich uses the ec2 instance as deployment target
+    const deploymentGroup = new cdk.aws_codedeploy.ServerDeploymentGroup(this, 'DeploymentGroup', {
+      deploymentGroupName: 'MyFirstDeploymentGroup',
+      autoRollback: {
+        failedDeployment: true,
+      },
+      deploymentConfig: cdk.aws_codedeploy.ServerDeploymentConfig.ALL_AT_ONCE,
+      installAgent: true,
+      ec2InstanceTags: new cdk.aws_codedeploy.InstanceTagSet({
+        source: ['dockerEc2'],
+      }),
+    });
+
+    // create a deploy stage that uses the "ec2Instance" as deployment target and the artifact from the "buildStage" as input
+    const deployStage = {
+      stageName: 'Deploy',
+      actions: [
+        new cdk.aws_codepipeline_actions.CodeDeployServerDeployAction({
+          actionName: 'CodeDeploy',
+          deploymentGroup,
+          input: new cdk.aws_codepipeline.Artifact('SourceArtifact'),
+        }),
+      ],
+    };
+
+    pipeline.addStage(deployStage);
+
+    // finish
   }
 }

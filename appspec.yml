@@ -1,0 +1,15 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /var/app
+hooks:
+  BeforeInstall:
+    - location: scripts/login_docker.sh
+    - location: scripts/stop_container.sh
+      timeout: 300
+      runas: root
+  ApplicationStart:
+    - location: scripts/start_container.sh
+      timeout: 300
+      runas: root
