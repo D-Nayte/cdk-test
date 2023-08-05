@@ -107,7 +107,6 @@ export class AwsInfraStack extends cdk.Stack {
 
     // create a codebuild using AWS CodeBuild to generate the docker image and push it to Docker hub and uses the "s3Bucket" as artifact store and the githubSourceStage as input
     const codeBuild = new cdk.aws_codebuild.PipelineProject(this, 'CodeBuild', {
-      // the output artifact should only contain the appspec.yml file and the scripts folder
       projectName: 'MyFirstCodeBuild',
       environment: {
         privileged: true,
@@ -134,10 +133,17 @@ export class AwsInfraStack extends cdk.Stack {
           },
           build: {
             commands: [
-              'echo Build started on `date`',
+              // build a docker image from DOCKERFILE and store it in a .tar file
               'echo Building the Docker image...',
-              'docker build -t $DOCKER_IMAGE_NAME .',
-              'docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:latest',
+              'docker build -t $DOCKER_IMAGE_NAME:latest .',
+              // create a .tar file from the docker image
+              'docker save $DOCKER_IMAGE_NAME:latest > dockerImage.tar',
+              // create a .tar file from the docker image
+              'mkdir dockerImage',
+              'tar -xvf dockerImage.tar -C dockerImage',
+              // push the docker image to docker hub
+              'echo Pushing the Docker image...',
+              'docker push $DOCKER_IMAGE_NAME:latest',
             ],
           },
           post_build: {
@@ -148,11 +154,17 @@ export class AwsInfraStack extends cdk.Stack {
             ],
           },
         },
+        // make shure the dockerImage.tar and the dockerImage folder are stored in the artifact
         artifacts: {
-          files: ['appspec.yml', 'scripts/**/*', '*.env'],
+          files: ['dockerImage.tar', 'dockerImage/**/*', 'appspec.yml', 'scripts/**/*'],
         },
       }),
     });
+
+    // 'echo Build started on `date`',
+    // 'echo Building the Docker image...',
+    // 'docker build -t $DOCKER_IMAGE_NAME .',
+    // 'docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:latest',
 
     // create a build stage that usses the artifact from the "githubSourceStage" as input and the "s3Bucket" as output and make sure the githubSourceStage is not empty
     const buildStage = {
