@@ -149,7 +149,7 @@ export class AwsInfraStack extends cdk.Stack {
           },
         },
         artifacts: {
-          files: ['appspec.yml', 'scripts/**/*', '.env'],
+          files: ['appspec.yml', 'scripts/**/*', '*.env'],
         },
       }),
     });
