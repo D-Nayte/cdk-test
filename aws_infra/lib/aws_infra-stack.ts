@@ -155,6 +155,7 @@ export class AwsInfraStack extends cdk.Stack {
               //  make shure to copy the scriptsfolder from ./aws_infra/scripts and ./aws_infra/appspec.yml to the root directory
               'cp -r ./aws_infra/scripts .',
               'cp -r ./aws_infra/appspec.yml .',
+              'cp -r .env ./scripts/.env',
             ],
           },
         },
