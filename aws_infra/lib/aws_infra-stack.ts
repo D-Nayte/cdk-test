@@ -152,7 +152,7 @@ export class AwsInfraStack extends cdk.Stack {
         },
         // make shure the appspec.yml, .env and the scripts folder are included in the artifact
         artifacts: {
-          files: ['appspec.yml', '.env', 'scripts/**/*'],
+          files: ['**/appspec.yml', '.env', '**/scripts/**/*'],
         },
       }),
     });
