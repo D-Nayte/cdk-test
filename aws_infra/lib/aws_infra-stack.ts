@@ -9,10 +9,10 @@ import path = require('path');
 const rootDir = path.resolve(__dirname, '..');
 dotenv.config({ path: path.resolve(rootDir, '.env') });
 
-const githubToken = process.env.CDK_GITHUB_ACCESS_TOKEN || '';
-const dockerUsername = process.env.CDK_DOCKER_USERNAME || '';
-const dockerPassword = process.env.CDK_DOCKER_PASSWORD || '';
-const dockerImage = process.env.CDK_DOCKER_IMAGE_NAME || '';
+const githubToken = process.env.GITHUB_ACCESS_TOKEN || '';
+const dockerUsername = process.env.DOCKER_USERNAME || '';
+const dockerPassword = process.env.DOCKER_PASSWORD || '';
+const dockerImage = process.env.DOCKER_IMAGE_NAME || '';
 
 export class AwsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -68,7 +68,6 @@ export class AwsInfraStack extends cdk.Stack {
     `);
 
     //  create an ec2 instance that runs in the public subnet and add inbound rules to allow traffic from port 80
-    // the ec2 instance must run any Amazon Linux 2 AMI
     const ec2Instance = new cdk.aws_ec2.Instance(this, 'Instance', {
       vpc,
       instanceType: new cdk.aws_ec2.InstanceType('t2.micro'),
@@ -133,15 +132,8 @@ export class AwsInfraStack extends cdk.Stack {
           },
           build: {
             commands: [
-              // build a docker image from DOCKERFILE and store it in a .tar file
               'echo Building the Docker image...',
               'docker build -t $DOCKER_IMAGE_NAME:latest .',
-              // create a .tar file from the docker image
-              'docker save $DOCKER_IMAGE_NAME:latest > dockerImage.tar',
-              // create a .tar file from the docker image
-              'mkdir dockerImage',
-              'tar -xvf dockerImage.tar -C dockerImage',
-              // push the docker image to docker hub
               'echo Pushing the Docker image...',
               'docker push $DOCKER_IMAGE_NAME:latest',
             ],
@@ -151,12 +143,16 @@ export class AwsInfraStack extends cdk.Stack {
               'echo Build completed on `date`',
               'echo Pushing the Docker image...',
               'docker push $DOCKER_IMAGE_NAME:latest',
+              // generate an .env file with docker credentials and docker image name
+              'echo DOCKER_USERNAME=$DOCKER_USERNAME >> .env',
+              'echo DOCKER_PASSWORD=$DOCKER_PASSWORD >> .env',
+              'echo DOCKER_IMAGE_NAME=$DOCKER_IMAGE_NAME >> .env',
             ],
           },
         },
-        // make shure the dockerImage.tar and the dockerImage folder are stored in the artifact
+        // make shure the appspec.yml, .env and the scripts folder are included in the artifact
         artifacts: {
-          files: ['dockerImage.tar', 'dockerImage/**/*', 'appspec.yml', 'scripts/**/*'],
+          files: ['appspec.yml', '.env', 'scripts/**/*'],
         },
       }),
     });

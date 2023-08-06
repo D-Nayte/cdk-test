@@ -27,3 +27,5 @@ docker run -p 80:3000 IMAGE
 
 check if docker runs sudo systemctl is-active docker
 check if codedeploy runs sudo service codedeploy-agent status
+
+add aws_infra (e.g. infrastructur folder) to dockerignore
