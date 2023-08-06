@@ -1,11 +1,11 @@
 //  this file manages the aws sources using the aws-cdk-lib
-// ignore typescript errors for this file
 
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-// use dotenv to read from .env file
 import * as dotenv from 'dotenv';
 import path = require('path');
+
+// load the .env file
 const rootDir = path.resolve(__dirname, '..');
 dotenv.config({ path: path.resolve(rootDir, '.env') });
 
@@ -108,7 +108,7 @@ export class AwsInfraStack extends cdk.Stack {
 
     // create a codebuild using AWS CodeBuild to generate the docker image and push it to Docker hub and uses the "s3Bucket" as artifact store and the githubSourceStage as input
     const codeBuild = new cdk.aws_codebuild.PipelineProject(this, 'CodeBuild', {
-      projectName: 'MyFirstCodeBuild',
+      projectName: `${projekctName}-codebuild`,
       environment: {
         privileged: true,
         environmentVariables: {
@@ -163,11 +163,6 @@ export class AwsInfraStack extends cdk.Stack {
       }),
     });
 
-    // 'echo Build started on `date`',
-    // 'echo Building the Docker image...',
-    // 'docker build -t $DOCKER_IMAGE_NAME .',
-    // 'docker tag $DOCKER_IMAGE_NAME $DOCKER_IMAGE_NAME:latest',
-
     // create a build stage that usses the artifact from the "githubSourceStage" as input and the "s3Bucket" as output and make sure the githubSourceStage is not empty
     const buildStage = {
       stageName: 'Build',
@@ -185,7 +180,7 @@ export class AwsInfraStack extends cdk.Stack {
 
     // create new CodeDeploy deploymentgroup wich uses the ec2 instance as deployment target
     const deploymentGroup = new cdk.aws_codedeploy.ServerDeploymentGroup(this, 'DeploymentGroup', {
-      deploymentGroupName: 'MyFirstDeploymentGroup',
+      deploymentGroupName: `${projekctName}-deploymentGroup`,
       autoRollback: {
         failedDeployment: true,
       },
@@ -214,9 +209,8 @@ export class AwsInfraStack extends cdk.Stack {
     // the pipline creates a s3 bucket along with the pipeline, make it possible that the ec2 instance e.g. codedeploy can access the s3 bucket
     const s3Bucket = pipeline.artifactBucket;
 
+    // grant the ec2 instance and the deploymentGroup access to the s3 bucket in order to pull the artifact from the s3 bucket
     s3Bucket.grantRead(deploymentGroup.role!);
     s3Bucket.grantReadWrite(ec2Instance.role!);
-
-    // finish
   }
 }
