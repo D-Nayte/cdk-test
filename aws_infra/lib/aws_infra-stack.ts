@@ -142,17 +142,21 @@ export class AwsInfraStack extends cdk.Stack {
             commands: [
               'echo Build completed on `date`',
               'echo Pushing the Docker image...',
+              'docker build -t $DOCKER_IMAGE_NAME .',
               'docker push $DOCKER_IMAGE_NAME:latest',
               // generate an .env file with docker credentials and docker image name
               'echo DOCKER_USERNAME=$DOCKER_USERNAME >> .env',
               'echo DOCKER_PASSWORD=$DOCKER_PASSWORD >> .env',
               'echo DOCKER_IMAGE_NAME=$DOCKER_IMAGE_NAME >> .env',
+              //  make shure to copy the scriptsfolder from ./aws_infra/scripts and ./aws_infra/appspec.yml to the root directory
+              'cp -r ./aws_infra/scripts .',
+              'cp -r ./aws_infra/appspec.yml .',
             ],
           },
         },
-        // make shure the appspec.yml, .env and the scripts folder are included in the artifact
+        // make shure to copy appsepc.yml from aws_infa/appsepc.yml to the root directory
         artifacts: {
-          files: ['**/appspec.yml', '.env', '**/scripts/**/*'],
+          files: ['appspec.yml', 'scripts/**/*', '.env'],
         },
       }),
     });
