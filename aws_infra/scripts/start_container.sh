@@ -4,11 +4,9 @@
 echo "Start container"
 source ../.env
 
-# Load docker image from file
-docker load -i ./dockerImage/dockerImage.tar
 docker run -d -p 80:3000 $DOCKER_IMAGE_NAME
 
-echo "Container is running...."
+echo "Container $DOCKER_IMAGE_NAME is running...."
 ```
 
 ```bash
