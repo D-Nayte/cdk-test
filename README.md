@@ -2,11 +2,27 @@
 
 This guide will walk you through the steps to set up and use my GitHub repository. It contains code for deploying AWS infrastructure using AWS CDK and running a Dockerized application. Follow the steps below to get started:
 
+## Overview of the steps:
+
+This setup will deploy the following AWS resources:
+
+- VPC
+- Codepipeline
+- Codebuild
+- CodeDeploy
+- EC2 instance
+- Some security groups
+
+## How it works:
+
+After you push to the observed github branch, the pipeline will be triggered and will create a new Docker image, push it to DockerHub and the Ec2 instance will pull the image and run it.
+
 ## Prerequisites
 
 1. Set up an AWS account and create security credentials for that account.
 2. Download the AWS CLI for Windows and configure it to use the credentials.
 3. Node.js and npm installed on your machine.
+4. Generata a github token and add it to the .env file inside the aws_infra folder
 
 ## Installation
 
@@ -33,10 +49,11 @@ This guide will walk you through the steps to set up and use my GitHub repositor
    ```
 
 2. Generate and synthesize the CloudFormation template for your AWS CDK app:
-   inside aws_infra folder
+
+   - inside aws_infra folder run:
 
    ```
-   npm run deploy
+   cdk synth
 
    ```
 
@@ -49,8 +66,15 @@ This guide will walk you through the steps to set up and use my GitHub repositor
    ```
 
 2. If you want to check the differences between your current AWS infrastructure and what will be deployed, use the following command:
+
    ```
    cdk diff
+   ```
+
+   - NOTE: You can also synthesize and deploy by using the following command inside the aws_infra folder:
+
+   ```
+   npm run deploy
    ```
 
 ## Docker Setup and Deployment

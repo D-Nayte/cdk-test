@@ -14,6 +14,7 @@ const dockerUsername = process.env.DOCKER_USERNAME || '';
 const dockerPassword = process.env.DOCKER_PASSWORD || '';
 const dockerImage = process.env.DOCKER_IMAGE_NAME || '';
 const projekctName = process.env.PROJECT_NAME || 'my-project';
+const githubBranch = process.env.GITHUB_BRANCH_TO_OBSERVE || 'main';
 
 export class AwsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -99,7 +100,7 @@ export class AwsInfraStack extends cdk.Stack {
           actionName: 'GitHub_Source',
           owner: 'D-Nayte',
           repo: 'cdk-test',
-          branch: 'main',
+          branch: githubBranch,
           oauthToken: cdk.SecretValue.unsafePlainText(githubToken),
           output: buildArtifakt,
         }),
