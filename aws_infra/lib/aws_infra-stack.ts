@@ -15,6 +15,8 @@ const dockerPassword = process.env.DOCKER_PASSWORD || '';
 const dockerImage = process.env.DOCKER_IMAGE_NAME || '';
 const projekctName = process.env.PROJECT_NAME || 'my-project';
 const githubBranch = process.env.GITHUB_BRANCH_TO_OBSERVE || 'main';
+const githubAccountName = process.env.GITHUB_ACCOUNT_NAME || '';
+const githubRepoName = process.env.GITHUB_REPO_NAME || '';
 
 export class AwsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -90,6 +92,7 @@ export class AwsInfraStack extends cdk.Stack {
       restartExecutionOnUpdate: true,
     });
 
+    // create an artifact to store the source code from the "gitHubRepo"
     const buildArtifakt = new cdk.aws_codepipeline.Artifact('BuildArtifact');
 
     // create a source stage that uses the "gitHubRepo" as source
@@ -98,8 +101,8 @@ export class AwsInfraStack extends cdk.Stack {
       actions: [
         new cdk.aws_codepipeline_actions.GitHubSourceAction({
           actionName: 'GitHub_Source',
-          owner: 'D-Nayte',
-          repo: 'cdk-test',
+          owner: githubAccountName,
+          repo: githubRepoName,
           branch: githubBranch,
           oauthToken: cdk.SecretValue.unsafePlainText(githubToken),
           output: buildArtifakt,
@@ -162,7 +165,7 @@ export class AwsInfraStack extends cdk.Stack {
         },
         // make shure to copy appsepc.yml from aws_infa/appsepc.yml to the root directory
         artifacts: {
-          files: ['appspec.yml', 'scripts/**/*', '.env'],
+          files: ['appspec.yml', 'scripts/**/*'],
         },
       }),
     });
@@ -202,7 +205,7 @@ export class AwsInfraStack extends cdk.Stack {
         new cdk.aws_codepipeline_actions.CodeDeployServerDeployAction({
           actionName: 'CodeDeploy',
           deploymentGroup,
-          // get the artifact that was created from codebuild during the build stage, remember "pipeline.artifacts[1]" is wrong! because "artifacts" is not part of the pipeline
+          // get the artifact that was created from codebuild during the build stage
           input: buildStage.actions[0].actionProperties.outputs![0],
         }),
       ],
@@ -210,10 +213,8 @@ export class AwsInfraStack extends cdk.Stack {
 
     pipeline.addStage(deployStage);
 
-    // the pipline creates a s3 bucket along with the pipeline, make it possible that the ec2 instance e.g. codedeploy can access the s3 bucket
+    // the pipline creates a s3 bucket along with the pipeline, so we need to get the s3 bucket from the pipeline and grant the ec2 instance and the deploymentGroup access to the s3 bucket
     const s3Bucket = pipeline.artifactBucket;
-
-    // grant the ec2 instance and the deploymentGroup access to the s3 bucket in order to pull the artifact from the s3 bucket
     s3Bucket.grantRead(deploymentGroup.role!);
     s3Bucket.grantReadWrite(ec2Instance.role!);
   }
