@@ -22,6 +22,7 @@ export class AwsInfraStack extends cdk.Stack {
     // create a new vpc with a public subnet
     const vpc = new cdk.aws_ec2.Vpc(this, 'VPC', {
       maxAzs: 1,
+      vpcName: `${projekctName}-vpc`,
       subnetConfiguration: [
         {
           name: 'Public',
@@ -34,6 +35,7 @@ export class AwsInfraStack extends cdk.Stack {
     const securityGroup = new cdk.aws_ec2.SecurityGroup(this, 'SecurityGroup', {
       vpc,
       allowAllOutbound: true,
+      securityGroupName: `${projekctName}-security-group`,
     });
 
     securityGroup.addIngressRule(
