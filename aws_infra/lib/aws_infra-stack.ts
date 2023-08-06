@@ -13,6 +13,7 @@ const githubToken = process.env.GITHUB_ACCESS_TOKEN || '';
 const dockerUsername = process.env.DOCKER_USERNAME || '';
 const dockerPassword = process.env.DOCKER_PASSWORD || '';
 const dockerImage = process.env.DOCKER_IMAGE_NAME || '';
+const projekctName = process.env.PROJECT_NAME || 'my-project';
 
 export class AwsInfraStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -74,6 +75,7 @@ export class AwsInfraStack extends cdk.Stack {
       machineImage: cdk.aws_ec2.MachineImage.latestAmazonLinux2(),
       securityGroup: securityGroup,
       userData: script,
+      instanceName: `${projekctName}-ec2`,
     });
 
     // add  the tag "dockerEc2" to the ec2 instance in order to find it later
@@ -81,7 +83,7 @@ export class AwsInfraStack extends cdk.Stack {
 
     // create a CICD pipleline that uses the "gitHubRepo" as source and stores the artifacts in the "s3Bucket"
     const pipeline = new cdk.aws_codepipeline.Pipeline(this, 'Pipeline', {
-      pipelineName: 'MyFirstPipeline',
+      pipelineName: `${projekctName}-pipeline`,
       restartExecutionOnUpdate: true,
     });
 
