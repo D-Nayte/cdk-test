@@ -3,6 +3,7 @@ os: linux
 files:
   - source: /
     destination: /var/app
+    overwrite: true
 hooks:
   BeforeInstall:
     - location: scripts/login_docker.sh
@@ -13,3 +14,4 @@ hooks:
     - location: scripts/start_container.sh
       timeout: 300
       runas: root
+file_exists_behavior: OVERWRITE
